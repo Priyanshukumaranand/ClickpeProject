@@ -8,12 +8,15 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabaseBrowser = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
+const browserKey = supabaseAnonKey;
+const serviceKey = supabaseServiceKey ?? supabaseAnonKey;
+
+const supabaseBrowser = supabaseUrl && browserKey
+  ? createClient(supabaseUrl, browserKey)
   : null;
 
-const supabaseServer = supabaseUrl && (supabaseServiceKey || supabaseAnonKey)
-  ? createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
+const supabaseServer = supabaseUrl && serviceKey
+  ? createClient(supabaseUrl, serviceKey)
   : null;
 
 type DbProduct = {
