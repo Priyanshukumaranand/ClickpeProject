@@ -1,0 +1,82 @@
+{
+  "name": "Workflow B - User Loan Matching",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "webhookDescription": {
+        "httpMethod": "POST",
+        "path": "user-upload-complete",
+        "responseMode": "onReceived"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "query",
+        "query": "SELECT id, email, monthly_income, credit_score FROM users ORDER BY created_at DESC LIMIT 500"
+      },
+      "id": "2",
+      "name": "Fetch Users",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+    },
+    {
+      "parameters": {
+        "operation": "query",
+        "query": "SELECT id, product_name, interest_rate, min_monthly_income, min_credit_score FROM loan_products"
+      },
+      "id": "3",
+      "name": "Fetch Products",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+    },
+    {
+      "parameters": {
+        "functionCode": "// Fast SQL-style prefilter: income/credit gates\nconst users = items[0].json.data || items[0].json;\nconst products = $items('Fetch Products')[0].json.data || $items('Fetch Products')[0].json;\nconst eligiblePairs = [];\nfor (const u of users) {
+  for (const p of products) {
+    if ((p.min_monthly_income ?? 0) <= (u.monthly_income ?? 0) && (p.min_credit_score ?? 0) <= (u.credit_score ?? 0)) {
+      eligiblePairs.push({ user: u, product: p });
+    }
+  }
+}
+return eligiblePairs.map(pair => ({ json: pair }));"
+      },
+      "id": "4",
+      "name": "Prefilter",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "functionCode": "// Optional AI rerank: here we apply a heuristic score to avoid heavy LLM calls.\nreturn items.map(item => ({ json: { ...item.json, score: 1 / Math.max(item.json.product.interest_rate || 0.1, 0.1) } }));"
+      },
+      "id": "5",
+      "name": "Heuristic Score",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "execute",
+        "query": "INSERT INTO matches (user_id, product_id, score) VALUES ({{$json.user.id}}, {{$json.product.id}}, {{$json.score}}) ON CONFLICT DO NOTHING"
+      },
+      "id": "6",
+      "name": "Persist Matches",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": { "main": [[{ "node": "Fetch Users", "type": "main", "index": 0 }, { "node": "Fetch Products", "type": "main", "index": 0 }]] },
+    "Fetch Users": { "main": [[{ "node": "Prefilter", "type": "main", "index": 0 }]] },
+    "Fetch Products": { "main": [[{ "node": "Prefilter", "type": "main", "index": 0 }]] },
+    "Prefilter": { "main": [[{ "node": "Heuristic Score", "type": "main", "index": 0 }]] },
+    "Heuristic Score": { "main": [[{ "node": "Persist Matches", "type": "main", "index": 0 }]] }
+  }
+}

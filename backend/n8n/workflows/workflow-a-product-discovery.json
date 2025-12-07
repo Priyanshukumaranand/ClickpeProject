@@ -1,0 +1,85 @@
+{
+  "name": "Workflow A - Loan Product Discovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": "custom",
+        "cronExpression": "0 4 * * *"
+      },
+      "id": "1",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "https://example-bank-1.com/personal-loans",
+        "responseFormat": "string"
+      },
+      "id": "2",
+      "name": "Fetch Bank1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://example-bank-2.com/personal-loans",
+        "responseFormat": "string"
+      },
+      "id": "3",
+      "name": "Fetch Bank2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [300, 360]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse HTML snippets into product rows. Replace with real selectors.\nconst inputs = items.map(i => i.json.html || i.json.data || '');\nconst sample = inputs.map((html, idx) => ({\n  product_name: `Product-${idx+1}`,\n  interest_rate: 10 + idx,\n  min_monthly_income: 25000 + idx * 5000,\n  min_credit_score: 680,\n  source_url: $input.all()[idx]?.json?.url || 'unknown',\n}));\nreturn sample.map(row => ({ json: row }));"
+      },
+      "id": "4",
+      "name": "Normalize Products",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [520, 280]
+    },
+    {
+      "parameters": {
+        "operation": "execute",
+        "query": "INSERT INTO loan_products (product_name, source_url, interest_rate, min_monthly_income, min_credit_score, eligibility)\nVALUES ({{$json.product_name}}, {{$json.source_url}}, {{$json.interest_rate}}, {{$json.min_monthly_income}}, {{$json.min_credit_score}}, '{{}}'::jsonb)\nON CONFLICT (product_name) DO UPDATE SET\n  interest_rate = EXCLUDED.interest_rate,\n  min_monthly_income = EXCLUDED.min_monthly_income,\n  min_credit_score = EXCLUDED.min_credit_score,\n  source_url = EXCLUDED.source_url,\n  scraped_at = now();"
+      },
+      "id": "5",
+      "name": "Store Products",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "credentials": {
+        "postgres": {
+          "id": "PG_CREDENTIAL_ID",
+          "name": "Postgres"
+        }
+      },
+      "position": [760, 280]
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Bank1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Bank2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Bank1": { "main": [[{ "node": "Normalize Products", "type": "main", "index": 0 }]] },
+    "Fetch Bank2": { "main": [[{ "node": "Normalize Products", "type": "main", "index": 0 }]] },
+    "Normalize Products": { "main": [[{ "node": "Store Products", "type": "main", "index": 0 }]] }
+  }
+}

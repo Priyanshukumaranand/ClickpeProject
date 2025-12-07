@@ -1,0 +1,61 @@
+{
+  "name": "Workflow C - Notify Users",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "webhookDescription": {
+        "httpMethod": "POST",
+        "path": "matches-complete",
+        "responseMode": "onReceived"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "query",
+        "query": "SELECT u.email, m.user_id, m.product_id, p.product_name, p.interest_rate FROM matches m JOIN users u ON u.id = m.user_id JOIN loan_products p ON p.id = m.product_id WHERE m.created_at >= now() - interval '1 day'"
+      },
+      "id": "2",
+      "name": "Fetch Recent Matches",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+    },
+    {
+      "parameters": {
+        "functionCode": "// group matches per user email\nconst grouped = {};
+for (const item of items) {
+  const email = item.json.email;
+  if (!grouped[email]) grouped[email] = [];
+  grouped[email].push(item.json);
+}
+return Object.entries(grouped).map(([email, matches]) => ({ json: { email, matches } }));"
+      },
+      "id": "3",
+      "name": "Group By User",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "fromEmail": "no-reply@yourdomain.com",
+        "toEmail": "={{$json.email}}",
+        "subject": "Your matched loan products",
+        "text": "={{$json.matches.map(m => `${m.product_name} (${m.interest_rate || 'NA'}% APR)`).join('\n')}}"
+      },
+      "id": "4",
+      "name": "Send SES Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "credentials": {"smtp": {"id": "SES_SMTP_CREDENTIAL", "name": "SES SMTP"}}
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": { "main": [[{ "node": "Fetch Recent Matches", "type": "main", "index": 0 }]] },
+    "Fetch Recent Matches": { "main": [[{ "node": "Group By User", "type": "main", "index": 0 }]] },
+    "Group By User": { "main": [[{ "node": "Send SES Email", "type": "main", "index": 0 }]] }
+  }
+}

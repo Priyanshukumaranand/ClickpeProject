@@ -1,0 +1,56 @@
+service: loan-eligibility-engine
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: ${env:AWS_REGION, 'ap-south-1'}
+  stage: ${env:STAGE, 'dev'}
+  environment:
+    UPLOAD_BUCKET: ${env:UPLOAD_BUCKET}
+    PG_HOST: ${env:PG_HOST}
+    PG_PORT: ${env:PG_PORT, '5432'}
+    PG_DATABASE: ${env:PG_DATABASE}
+    PG_USER: ${env:PG_USER}
+    PG_PASSWORD: ${env:PG_PASSWORD}
+    N8N_WEBHOOK_URL: ${env:N8N_WEBHOOK_URL, ''}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:GetObject
+        - s3:PutObject
+      Resource: arn:aws:s3:::${env:UPLOAD_BUCKET}/*
+
+functions:
+  createUploadUrl:
+    handler: src/presign.handler
+    memorySize: 256
+    timeout: 10
+    events:
+      - httpApi:
+          path: /upload-url
+          method: post
+  ingestCsv:
+    handler: src/ingest.handler
+    memorySize: 512
+    timeout: 60
+    events:
+      - s3:
+          bucket: ${env:UPLOAD_BUCKET}
+          event: s3:ObjectCreated:*
+          rules:
+            - suffix: .csv
+
+package:
+  patterns:
+    - '!../frontend/**'
+    - '!n8n/**'
+    - '!.git/**'
+    - '!**/.gitignore'
+    - '!**/.DS_Store'
+    - '!**/*.md'
+    - '.python_packages/**'
+    - 'src/**'
+    - 'requirements.txt'
+
+plugins: []

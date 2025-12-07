@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+/frontend/node_modules
+/frontend/.next
+/backend/.python_packages
 /.pnp
 .pnp.*
 .yarn/*
@@ -14,7 +17,7 @@
 /coverage
 
 # next.js
-/.next/
+/frontend/.next/
 /out/
 
 # production
