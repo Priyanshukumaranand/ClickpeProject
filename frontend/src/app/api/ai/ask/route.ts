@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getProductById } from "@/lib/products";
@@ -39,44 +39,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
 
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
   const history: ChatMessage[] = parsed.data.history ?? [];
 
-  if (!openaiKey) {
+  const fallbackAnswer =
+    "I can only answer based on the stored product details. For APR, eligibility, fees, and tenure please refer to the card above.";
+
+  if (!geminiKey) {
     return NextResponse.json(
-      {
-        answer:
-          "I can only answer based on the stored product details. For APR, eligibility, fees, and tenure please refer to the card above.",
-      },
+      { answer: fallbackAnswer },
       { status: 200 }
     );
   }
 
-  const client = new OpenAI({ apiKey: openaiKey });
-  const prompt = buildPrompt(JSON.stringify(product, null, 2));
+  const client = new GoogleGenerativeAI(geminiKey);
+  const model = client.getGenerativeModel({
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+    systemInstruction: buildPrompt(JSON.stringify(product, null, 2)),
+  });
 
-  const messages = [
-    { role: "system" as const, content: prompt },
-    ...history.map((m) => ({ role: m.role, content: m.content })),
-    { role: "user" as const, content: parsed.data.message },
+  const contents = [
+    ...history.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    })),
+    { role: "user", parts: [{ text: parsed.data.message }] },
   ];
 
   try {
-    const completion = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages,
-      temperature: 0.3,
-      max_tokens: 300,
+    const result = await model.generateContent({
+      contents,
+      generationConfig: { temperature: 0.3, maxOutputTokens: 300 },
     });
 
-    const answer = completion.choices[0]?.message?.content ??
+    const answer = result.response?.text()?.trim() ??
       "I could not generate an answer from the product data.";
 
     return NextResponse.json({ answer });
   } catch (error) {
     console.error("AI route error", error);
     return NextResponse.json(
-      { answer: "I can only answer based on the product details and don't have that info yet." },
+      { answer: fallbackAnswer },
       { status: 200 }
     );
   }

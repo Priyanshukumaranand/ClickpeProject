@@ -1,6 +1,6 @@
 ## Loan Picks Dashboard
 
-Dashboard to surface top 5 personalized loan matches, browse all products with filters, and ask grounded AI questions on any loan. Built with Next.js App Router, TypeScript, Tailwind + shadcn/ui, Supabase, Zod, and OpenAI.
+Dashboard to surface top 5 personalized loan matches, browse all products with filters, and ask grounded AI questions on any loan. Built with Next.js App Router, TypeScript, Tailwind + shadcn/ui, Supabase, Zod, and Gemini.
 
 ### Architecture
 
@@ -11,7 +11,7 @@ Browser (Dashboard, All Products, Chat Sheet)
 			v
 Next.js App Router (Edge/Node)
 	├─ Route: /api/products -> Zod-validated filters -> Supabase (read) -> badge logic -> JSON
-	├─ Route: /api/ai/ask -> Zod body -> Supabase (product lookup) -> OpenAI (grounded prompt)
+	├─ Route: /api/ai/ask -> Zod body -> Supabase (product lookup) -> Gemini (grounded prompt)
 	└─ UI (server components) -> Client cards, filters, chat sheet
 Supabase Postgres
 	├─ products (seeded 10 rows)
@@ -24,13 +24,13 @@ Supabase Postgres
 - Tailwind CSS 3 + shadcn/ui primitives
 - Zod for API validation
 - Supabase JS client for hosted Postgres reads
-- OpenAI chat completions for grounded answers
+- Google Gemini chat completions for grounded answers (flash/free tier)
 
 ### Setup
 1. Install deps: `npm install`
 2. Copy envs: `cp .env.example .env.local` and fill:
 	 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-	 - `OPENAI_API_KEY` (or any OpenAI-compatible endpoint) and optional `OPENAI_MODEL`
+	 - `GEMINI_API_KEY` (Google AI Studio) and optional `GEMINI_MODEL` (default: gemini-2.0-flash)
 3. Create Postgres (Supabase recommended) and run the schema + seed: `psql $SUPABASE_DB_URL -f supabase/seed.sql`
 4. Run dev server: `npm run dev` -> http://localhost:3000
 
@@ -51,7 +51,7 @@ Supabase Postgres
 	}
 	```
 	- Looks up product in Supabase (falls back to mock seed if env missing)
-	- Builds grounded prompt and queries OpenAI (model default: gpt-4o-mini)
+	- Builds grounded prompt and queries Gemini (model default: gemini-2.0-flash)
 	- Fallback safe answer when model key is absent or question is out-of-scope
 
 ### Badge Logic
@@ -73,7 +73,7 @@ Badges are derived per product (see `src/lib/badge.ts`):
 
 ### Deployment (Vercel)
 1. Push to GitHub (private) and invite reviewers: harsh.srivastav@clickpe.ai, paras.upadhaya@clickpe.ai, punit.kumar@clickpe.ai, saurabh@clickpe.ai
-2. In Vercel: Import repo → set env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `OPENAI_MODEL`) → deploy
+2. In Vercel: Import repo → set env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`) → deploy
 3. Run `supabase/seed.sql` against the connected database (Supabase SQL editor or psql)
 
 ### Testing / QA
