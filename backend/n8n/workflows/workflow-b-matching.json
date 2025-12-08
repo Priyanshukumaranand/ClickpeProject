@@ -7,6 +7,7 @@
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
+      "position": [100, 200],
       "webhookDescription": {
         "httpMethod": "POST",
         "path": "user-upload-complete",
@@ -22,7 +23,8 @@
       "name": "Fetch Users",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
-      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+      "position": [320, 140],
+      "credentials": { "postgres": { "id": "PG_CREDENTIAL_ID", "name": "Postgres" } }
     },
     {
       "parameters": {
@@ -33,43 +35,40 @@
       "name": "Fetch Products",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
-      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+      "position": [320, 260],
+      "credentials": { "postgres": { "id": "PG_CREDENTIAL_ID", "name": "Postgres" } }
     },
     {
       "parameters": {
-        "functionCode": "// Fast SQL-style prefilter: income/credit gates\nconst users = items[0].json.data || items[0].json;\nconst products = $items('Fetch Products')[0].json.data || $items('Fetch Products')[0].json;\nconst eligiblePairs = [];\nfor (const u of users) {
-  for (const p of products) {
-    if ((p.min_monthly_income ?? 0) <= (u.monthly_income ?? 0) && (p.min_credit_score ?? 0) <= (u.credit_score ?? 0)) {
-      eligiblePairs.push({ user: u, product: p });
-    }
-  }
-}
-return eligiblePairs.map(pair => ({ json: pair }));"
+        "functionCode": "// Filter products by income/credit gates\nconst users = items[0].json.data || items[0].json;\nconst products = $items('Fetch Products')[0].json.data || $items('Fetch Products')[0].json;\nconst eligiblePairs = [];\nfor (const u of users) {\n  for (const p of products) {\n    if ((p.min_monthly_income ?? 0) <= (u.monthly_income ?? 0) && (p.min_credit_score ?? 0) <= (u.credit_score ?? 0)) {\n      eligiblePairs.push({ user: u, product: p });\n    }\n  }\n}\nreturn eligiblePairs.map(pair => ({ json: pair }));"
       },
       "id": "4",
       "name": "Prefilter",
       "type": "n8n-nodes-base.function",
-      "typeVersion": 1
+      "typeVersion": 1,
+      "position": [560, 200]
     },
     {
       "parameters": {
-        "functionCode": "// Optional AI rerank: here we apply a heuristic score to avoid heavy LLM calls.\nreturn items.map(item => ({ json: { ...item.json, score: 1 / Math.max(item.json.product.interest_rate || 0.1, 0.1) } }));"
+        "functionCode": "// Simple score: lower interest = higher score\nreturn items.map(item => ({ json: { ...item.json, score: 1 / Math.max(item.json.product.interest_rate || 0.1, 0.1) } }));"
       },
       "id": "5",
       "name": "Heuristic Score",
       "type": "n8n-nodes-base.function",
-      "typeVersion": 1
+      "typeVersion": 1,
+      "position": [800, 200]
     },
     {
       "parameters": {
         "operation": "execute",
-        "query": "INSERT INTO matches (user_id, product_id, score) VALUES ({{$json.user.id}}, {{$json.product.id}}, {{$json.score}}) ON CONFLICT DO NOTHING"
+        "query": "INSERT INTO matches (user_id, product_id, score)\nVALUES ({{$json.user.id}}, {{$json.product.id}}, {{$json.score}})\nON CONFLICT DO NOTHING"
       },
       "id": "6",
       "name": "Persist Matches",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 1,
-      "credentials": {"postgres": {"id": "PG_CREDENTIAL_ID", "name": "Postgres"}}
+      "position": [1040, 200],
+      "credentials": { "postgres": { "id": "PG_CREDENTIAL_ID", "name": "Postgres" } }
     }
   ],
   "connections": {

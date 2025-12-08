@@ -9,11 +9,12 @@
       "id": "1",
       "name": "Daily Trigger",
       "type": "n8n-nodes-base.cron",
-      "typeVersion": 1
+      "typeVersion": 1,
+      "position": [100, 200]
     },
     {
       "parameters": {
-        "url": "https://example-bank-1.com/personal-loans",
+        "url": "https://httpbin.org/json",
         "responseFormat": "string"
       },
       "id": "2",
@@ -24,7 +25,7 @@
     },
     {
       "parameters": {
-        "url": "https://example-bank-2.com/personal-loans",
+        "url": "https://httpbin.org/anything/bank2",
         "responseFormat": "string"
       },
       "id": "3",
@@ -41,7 +42,7 @@
       "name": "Normalize Products",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [520, 280]
+      "position": [560, 200]
     },
     {
       "parameters": {
@@ -58,23 +59,15 @@
           "name": "Postgres"
         }
       },
-      "position": [760, 280]
+      "position": [820, 200]
     }
   ],
   "connections": {
     "Daily Trigger": {
       "main": [
         [
-          {
-            "node": "Fetch Bank1",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Fetch Bank2",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "Fetch Bank1", "type": "main", "index": 0 },
+          { "node": "Fetch Bank2", "type": "main", "index": 0 }
         ]
       ]
     },
